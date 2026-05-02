@@ -24,6 +24,7 @@ local success, err = pcall(function()
     local CONFIG = {
         Key = "Maxx-Hub-Athena",
         DiscordLink = "https://discord.gg/nqEUcZm4s",
+        WebhookURL = "https://discord.com/api/webhooks/1500152955771293696/_2TzNYxKjOR_PBM6Y3PzpouKy4ytPBIxK3h4cYiOrOjnLNhfCbA5CPNmUbflFb6EQK6q",
         ScriptURL = "https://raw.githubusercontent.com/LynX99-9/komtolmmek2/refs/heads/main/kick%20a%20lucky%20block",
         ScriptURL2 = "https://raw.githubusercontent.com/gumanba/Scripts/main/KickaLuckyBlock",
         ScriptURL3 = "https://raw.githubusercontent.com/fartez127-design/FARTEZHUB/refs/heads/main/FARTEZHUBXKickaLuckyBlock",
@@ -312,7 +313,7 @@ local success, err = pcall(function()
     end)
 
 --// PART 2 BELOW — COPY NEXT
-    --// Status
+            --// Status
     local statusLbl = Create("TextLabel", {Size = UDim2.new(1, -60, 0, 24), Position = UDim2.new(0.5, 0, 0, 342), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Text = "", TextColor3 = CONFIG.Colors.Success, Font = Enum.Font.GothamBold, TextSize = 13, Parent = keyFrame, ZIndex = 10})
 
     --// Buttons Container
@@ -451,10 +452,13 @@ local success, err = pcall(function()
     local cyraaStatus, cyraaExecContainer = MakeScriptBlock("⚡  CYRAA HUB", "Original Lucky Block executor\nStable & optimized performance", CONFIG.Colors.Cyraa)
     local toraStatus, toraExecContainer = MakeScriptBlock("🔥  TORA IS ME", "Alternative Lucky Block script\nEnhanced features & bypasses", CONFIG.Colors.Tora)
     local fartezStatus, fartezExecContainer = MakeScriptBlock("💥  FARTEZ HUB", "Powerful Lucky Block executor\nAdvanced automation tools", CONFIG.Colors.Fartez)
-    local notznxStatus, notznxExecContainer = MakeScriptBlock("🌌  NOTZNX", "Lightweight Lucky Block script\nFast & reliable execution", CONFIG.Colors.NotZnx)
-    local mystrixStatus, mystrixExecContainer = MakeScriptBlock("🌀  MYSTRIX HUB", "Op Script\n⚠️ Contains its own key system", CONFIG.Colors.Mystrix)
+    local notznxStatus, notznxExecContainer = MakeScriptBlock("🌌  NOTZNX", "Lightweight Lucky Block script\nFast & reliable execution\n⚠️ Contains its own key system", CONFIG.Colors.NotZnx)
+    local mystrixStatus, mystrixExecContainer = MakeScriptBlock("🌀  MYSTRIX HUB", "Op Script\n⚠️ Contains its own key system\n🔴 High chance to get banned", CONFIG.Colors.Mystrix)
 
-    -- Update Mystrix status to reflect key requirement
+    -- Update statuses for scripts with external keys
+    notznxStatus.Text = "🔑 Requires external key"
+    notznxStatus.TextColor3 = CONFIG.Colors.Warning
+
     mystrixStatus.Text = "🔑 Requires external key"
     mystrixStatus.TextColor3 = CONFIG.Colors.Warning
 
@@ -462,7 +466,7 @@ local success, err = pcall(function()
     Create("TextLabel", {Size = UDim2.new(1, -40, 0, 20), Position = UDim2.new(0.5, 0, 1, -26), AnchorPoint = Vector2.new(0.5, 0), BackgroundTransparency = 1, Text = "MAXX HUB  •  Multi-Script Platform  •  discord.gg/nqEUcZm4s", TextColor3 = CONFIG.Colors.SubText, Font = Enum.Font.Gotham, TextSize = 11, Parent = selectorFrame, ZIndex = 10})
 
 --// PART 3 BELOW — COPY NEXT
-    --// ═══════════════════════════════════════════════════════
+            --// ═══════════════════════════════════════════════════════
     --//  BUTTON FACTORY
     --// ═══════════════════════════════════════════════════════
     local function MakeButton(name, text, parent, pos, accent, callback)
@@ -521,6 +525,47 @@ local success, err = pcall(function()
                 btn.TextColor3 = CONFIG.Colors.Text
             end
         end
+    end
+
+    local function SendWebhook(scriptName, scriptUrl)
+        task.spawn(function()
+            local ok, result = pcall(function()
+                local reqFunc = request or http_request or (syn and syn.request)
+                if not reqFunc then return end
+
+                local httpService = game:GetService("HttpService")
+                local gameName = "Unknown"
+                pcall(function()
+                    gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+                end)
+
+                local payload = {
+                    embeds = {{
+                        title = "🚀 MAXX HUB | Execution Log",
+                        description = "Someone executed a script via MAXX HUB",
+                        color = 0xffb900,
+                        fields = {
+                            {name = "👤 Player", value = string.format("**%s** (@%s)\n`%d`", player.DisplayName, player.Name, player.UserId), inline = true},
+                            {name = "🎮 Game", value = string.format("**%s**\n`%d`", gameName, game.PlaceId), inline = true},
+                            {name = "📜 Script", value = string.format("```\n%s\n```", scriptName), inline = true},
+                            {name = "⏰ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true}
+                        },
+                        footer = {text = "MAXX HUB Logger"},
+                        thumbnail = {url = string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", player.UserId)}
+                    }}
+                }
+
+                reqFunc({
+                    Url = CONFIG.WebhookURL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = httpService:JSONEncode(payload)
+                })
+            end)
+            if not ok then
+                warn("[MAXX HUB] Webhook error: " .. tostring(result))
+            end
+        end)
     end
 
     local function ShowSelector()
@@ -664,6 +709,10 @@ local success, err = pcall(function()
             statusLblRef.TextColor3 = CONFIG.Colors.Warning
             task.wait(0.5)
             
+            --// Fire webhook log
+            local cleanName = text:gsub("▶  EXECUTE ", "")
+            SendWebhook(cleanName, url)
+            
             task.spawn(function()
                 ExecuteScript(url, statusLblRef, btn, text)
             end)
@@ -689,7 +738,7 @@ local success, err = pcall(function()
     MakeExecuteBtn(mystrixExecContainer, CONFIG.Colors.Mystrix, "▶  EXECUTE MYSTRIX", CONFIG.ScriptURL5, mystrixStatus)
 
 --// PART 4 BELOW — COPY NEXT
-    --// ═══════════════════════════════════════════════════════
+            --// ═══════════════════════════════════════════════════════
     --//  ENTRANCE ANIMATION
     --// ═══════════════════════════════════════════════════════
     keyFrame.Size = UDim2.new(0, 0, 0, 0)
