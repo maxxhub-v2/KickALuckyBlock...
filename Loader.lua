@@ -22,6 +22,9 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local playerGui = player:WaitForChild("PlayerGui")
 
+    --// Execution counter (stored in memory only)
+    local executionCount = 0
+
     --// Configuration
     local CONFIG = {
         Key = "Maxx-Hub-Athena",
@@ -142,153 +145,79 @@ local success, err = pcall(function()
 
 --// PART 2 BELOW — COPY NEXT
             --// ═══════════════════════════════════════════════════════
-    --//  ENHANCED WEBHOOK LOGGER
+    --//  SIMPLE WEBHOOK — EXECUTION COUNT ONLY
     --// ═══════════════════════════════════════════════════════
-    local function GetExecutorName()
-        local execNames = {
-            ["Synapse X"] = "Synapse X",
-            ["ScriptWare"] = "Script-Ware",
-            ["Krnl"] = "KRNL",
-            ["Fluxus"] = "Fluxus",
-            ["Electron"] = "Electron",
-            ["Oxygen"] = "Oxygen U",
-            ["Codex"] = "Codex",
-            ["Delta"] = "Delta Executor",
-            ["Hydrogen"] = "Hydrogen",
-            ["Trigon"] = "Trigon Evo",
-            ["Furk"] = "Furk Ultra",
-            ["VegaX"] = "Vega X"
-        }
-        
-        if syn then return "Synapse X" end
-        if fluxus then return "Fluxus" end
-        if KRNL_LOADED or krnl then return "KRNL" end
-        if getexecutorname then
-            local ok, name = pcall(getexecutorname)
-            if ok and name then return name end
+    local function GetRequestFunc()
+        if syn and syn.request then
+            return syn.request
         end
-        if identifyexecutor then
-            local ok, name = pcall(identifyexecutor)
-            if ok and name then return name end
+        if http_request then
+            return http_request
         end
-        
         if request then
-            local ok, req = pcall(function()
-                return request({Url = "https://httpbin.org/user-agent", Method = "GET"})
-            end)
-            if ok and req then
-                local body = HttpService:JSONDecode(req.Body)
-                if body and body["user-agent"] then
-                    for key, name in pairs(execNames) do
-                        if body["user-agent"]:find(key) then return name end
-                    end
-                end
-            end
+            return request
         end
+        if http and http.request then
+            return http.request
+        end
+        return nil
+    end
+
+    local function SendWebhook(scriptName)
+        executionCount = executionCount + 1
         
-        return "Unknown Executor"
-    end
-
-    local function GetAccountAge()
-        local age = player.AccountAge
-        if age < 1 then
-            return "Less than 1 day", "🔴 Brand New"
-        elseif age < 7 then
-            return age .. " days", "🟠 Very New"
-        elseif age < 30 then
-            return age .. " days", "🟡 New"
-        elseif age < 365 then
-            return math.floor(age / 30) .. " months", "🟢 Established"
-        else
-            return math.floor(age / 365) .. " years", "🔵 Veteran"
-        end
-    end
-
-    local function GetInventoryItems()
-        local items = {}
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            for _, tool in ipairs(backpack:GetChildren()) do
-                if tool:IsA("Tool") then
-                    table.insert(items, "🎒 " .. tool.Name)
-                end
-            end
-        end
-        
-        local character = player.Character
-        if character then
-            for _, tool in ipairs(character:GetChildren()) do
-                if tool:IsA("Tool") then
-                    table.insert(items, "✋ " .. tool.Name)
-                end
-            end
-        end
-        
-        if #items == 0 then
-            return "No items found"
-        elseif #items > 15 then
-            local truncated = {}
-            for i = 1, 15 do
-                table.insert(truncated, items[i])
-            end
-            return table.concat(truncated, "\n") .. "\n... and " .. (#items - 15) .. " more"
-        else
-            return table.concat(items, "\n")
-        end
-    end
-
-    local function GetPlayerThumbnail()
-        local ok, thumb = pcall(function()
-            return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-        end)
-        if ok and thumb then
-            return thumb
-        end
-        return string.format("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=420&height=420&format=png", player.UserId)
-    end
-
-    local function SendWebhook(scriptName, scriptUrl)
         task.spawn(function()
-            local ok, result = pcall(function()
-                local reqFunc = request or http_request or (syn and syn.request)
-                if not reqFunc then return end
+            local reqFunc = GetRequestFunc()
+            if not reqFunc then
+                warn("[MAXX HUB] Webhook skipped: No HTTP request function")
+                return
+            end
 
+            local ok, result = pcall(function()
                 local gameName = "Unknown"
                 pcall(function()
                     gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
                 end)
 
-                local executorName = GetExecutorName()
-                local accountAge, ageBadge = GetAccountAge()
-                local inventoryItems = GetInventoryItems()
-
                 local payload = {
+                    content = nil,
                     embeds = {{
-                        title = "🚀 MAXX HUB | Execution Log",
-                        description = "Someone executed a script via MAXX HUB",
+                        title = "🚀 MAXX HUB | Script Executed",
+                        description = "**" .. scriptName .. "** was executed",
                         color = 0xffb900,
-                        thumbnail = {url = GetPlayerThumbnail()},
                         fields = {
-                            {name = "👤 Player", value = string.format("**%s** (@%s)\n`UserID: %d`", player.DisplayName, player.Name, player.UserId), inline = true},
-                            {name = "📅 Account Age", value = string.format("%s\n%s", ageBadge, accountAge), inline = true},
-                            {name = "🎮 Game", value = string.format("**%s**\n`PlaceID: %d`", gameName, game.PlaceId), inline = true},
-                            {name = "💻 Executor", value = string.format("```\n%s\n```", executorName), inline = true},
-                            {name = "📜 Script", value = string.format("```\n%s\n```", scriptName), inline = true},
-                            {name = "⏰ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true},
-                            {name = "🎒 Inventory Items", value = string.format("```\n%s\n```", inventoryItems), inline = false}
+                            {name = "👤 Player", value = player.Name .. " (`" .. player.UserId .. "`)", inline = true},
+                            {name = "🎮 Game", value = gameName, inline = true},
+                            {name = "🔢 Execution Count", value = "**" .. tostring(executionCount) .. "**", inline = true},
+                            {name = "⏰ Time", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true}
                         },
-                        footer = {text = "MAXX HUB Logger • " .. executorName},
+                        footer = {text = "MAXX HUB Logger"},
                         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
                     }}
                 }
 
-                reqFunc({
-                    Url = CONFIG.WebhookURL,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "application/json"},
-                    Body = HttpService:JSONEncode(payload)
-                })
+                local body = HttpService:JSONEncode(payload)
+                
+                local reqOk, reqRes = pcall(function()
+                    return reqFunc({
+                        Url = CONFIG.WebhookURL,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = body
+                    })
+                end)
+
+                if reqOk and reqRes then
+                    if reqRes.StatusCode and reqRes.StatusCode >= 200 and reqRes.StatusCode < 300 then
+                        print("[MAXX HUB] Webhook sent | Count: " .. executionCount)
+                    else
+                        warn("[MAXX HUB] Webhook status: " .. tostring(reqRes.StatusCode or "unknown"))
+                    end
+                else
+                    warn("[MAXX HUB] Webhook failed: " .. tostring(reqRes))
+                end
             end)
+
             if not ok then
                 warn("[MAXX HUB] Webhook error: " .. tostring(result))
             end
@@ -758,7 +687,7 @@ local success, err = pcall(function()
     MakeButton("DiscordBtn", "JOIN DISCORD", btnContainer, UDim2.new(1, 0, 0, 48), false, JoinDiscord)
 
 --// PART 5 BELOW — COPY NEXT
-        --// ═══════════════════════════════════════════════════════
+--// ═══════════════════════════════════════════════════════
     --//  SCRIPT SELECTOR FRAME — POPULATE PRE-CREATED FRAME
     --//  selectorFrame was already created in Part 3
     --// ═══════════════════════════════════════════════════════
@@ -946,7 +875,7 @@ local success, err = pcall(function()
             task.wait(0.5)
             
             local cleanName = text:gsub("▶  EXECUTE ", "")
-            SendWebhook(cleanName, url)
+            SendWebhook(cleanName)
             
             task.spawn(function()
                 local ok, result = pcall(function()
